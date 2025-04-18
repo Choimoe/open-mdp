@@ -150,8 +150,8 @@ namespace MajdataEdit
 
         static void Pause()
         {
-            Console.WriteLine("按任意键继续...");
-            Console.ReadLine();
+            // Console.WriteLine("按任意键继续...");
+            // Console.ReadLine();
         }
     }
 }

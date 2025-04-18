@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Text.Json;
 
 namespace MajdataEdit
@@ -6,14 +9,41 @@ namespace MajdataEdit
     {
         static void Main(string[] args)
         {
-            // 设置文件路径
-            string filePath = Path.Combine(Directory.GetCurrentDirectory(), "maidata.txt");
-            string outputFilePath = Path.Combine(Directory.GetCurrentDirectory(), "pre-rawchart.json");
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: dotnet run [input_path] [output_directory]");
+                Pause();
+                return;
+            }
 
-            // 检查文件是否存在
+            string inputPath = args[0];
+            string outputDirectory = args[1];
+
+            // 提取数字ID（假设路径格式为 "data/niconicoボーカロイド/44_ハツヒイシンセサイサ/"）
+            string directoryName = Path.GetFileName(inputPath.TrimEnd('/'));
+            if (!Directory.Exists(inputPath))
+            {
+                Console.WriteLine($"输入路径 {inputPath} 不存在。");
+                Pause();
+                return;
+            }
+
+            string[] parts = directoryName.Split('_');
+            if (parts.Length < 1 || !int.TryParse(parts[0], out int id))
+            {
+                Console.WriteLine("无法解析数字ID，请确保路径格式为 '数字ID_日文名称'。");
+                Pause();
+                return;
+            }
+
+            // 设置文件路径
+            string filePath = Path.Combine(inputPath, "maidata.txt");
+            string outputBasePath = Path.Combine(outputDirectory, $"{id}_");
+
+            // 检查 maidata.txt 是否存在
             if (!File.Exists(filePath))
             {
-                Console.WriteLine("未找到 maidata.txt 文件。");
+                Console.WriteLine($"未找到 {filePath} 文件。");
                 Pause();
                 return;
             }
@@ -23,7 +53,6 @@ namespace MajdataEdit
 
             // 读取并处理文件
             bool success = SimaiProcess.ReadData(filePath);
-
             if (!success)
             {
                 Console.WriteLine("读取 maidata.txt 文件失败。");
@@ -48,77 +77,71 @@ namespace MajdataEdit
                 return;
             }
 
-            Console.WriteLine("可用的 level_index:");
+            // 为每个可用的 level_index 生成 JSON 文件
             foreach (var level in availableLevels)
             {
-                Console.WriteLine(level);
-            }
+                // 处理选定的 level_index
+                string SetRawFumenText = SimaiProcess.fumens[level];
+                SimaiProcess.Serialize(SetRawFumenText);
 
-            Console.Write("请选择要加载的 level_index: ");
-            if (!int.TryParse(Console.ReadLine(), out int selectedLevel) || !availableLevels.Contains(selectedLevel))
-            {
-                Console.WriteLine("无效的 level_index 选择。");
-                Pause();
-                return;
-            }
-
-            // 处理选定的 level_index
-            string SetRawFumenText = SimaiProcess.fumens[selectedLevel];
-            SimaiProcess.Serialize(SetRawFumenText);
-
-            foreach (var note in SimaiProcess.notelist)
-            {
-                note.noteList = note.getNotes();
-            }
-
-            var jsonOutput = new List<object>();
-
-            for (int i = 0; i < SimaiProcess.notelist.Count; i++)
-            {
-                var noteData = new
+                foreach (var note in SimaiProcess.notelist)
                 {
-                    Time = SimaiProcess.notelist[i].time,
-                    Notes = new List<Dictionary<string, object>>()
-                };
-
-                for (int j = 0; j < SimaiProcess.notelist[i].noteList.Count; j++)
-                {
-                    var note = SimaiProcess.notelist[i].noteList[j];
-                    var noteProperties = new Dictionary<string, object>
-                    {
-                        { "holdTime", note.holdTime },
-                        { "isBreak", note.isBreak },
-                        { "isEx", note.isEx },
-                        { "isFakeRotate", note.isFakeRotate },
-                        { "isForceStar", note.isForceStar },
-                        { "isHanabi", note.isHanabi },
-                        { "isSlideBreak", note.isSlideBreak },
-                        { "isSlideNoHead", note.isSlideNoHead },
-                        { "noteContent", note.noteContent ?? string.Empty }, // 处理可能为 null 的情况
-                        { "noteType", note.noteType.ToString() },
-                        { "slideStartTime", note.slideStartTime },
-                        { "slideTime", note.slideTime },
-                        { "startPosition", note.startPosition },
-                        { "touchArea", note.touchArea }
-                    };
-
-                    noteData.Notes.Add(noteProperties);
+                    note.noteList = note.getNotes();
                 }
 
-                jsonOutput.Add(noteData);
+                var jsonOutput = new List<object>();
+
+                for (int i = 0; i < SimaiProcess.notelist.Count; i++)
+                {
+                    var noteData = new
+                    {
+                        Time = SimaiProcess.notelist[i].time,
+                        Notes = new List<Dictionary<string, object>>()
+                    };
+
+                    for (int j = 0; j < SimaiProcess.notelist[i].noteList.Count; j++)
+                    {
+                        var note = SimaiProcess.notelist[i].noteList[j];
+                        var noteProperties = new Dictionary<string, object>
+                        {
+                            { "holdTime", note.holdTime },
+                            { "isBreak", note.isBreak },
+                            { "isEx", note.isEx },
+                            { "isFakeRotate", note.isFakeRotate },
+                            { "isForceStar", note.isForceStar },
+                            { "isHanabi", note.isHanabi },
+                            { "isSlideBreak", note.isSlideBreak },
+                            { "isSlideNoHead", note.isSlideNoHead },
+                            { "noteContent", note.noteContent ?? string.Empty },
+                            { "noteType", note.noteType.ToString() },
+                            { "slideStartTime", note.slideStartTime },
+                            { "slideTime", note.slideTime },
+                            { "startPosition", note.startPosition },
+                            { "touchArea", note.touchArea }
+                        };
+
+                        noteData.Notes.Add(noteProperties);
+                    }
+
+                    jsonOutput.Add(noteData);
+                }
+
+                // 生成文件名：数字ID_等级.json
+                string outputFilePath = $"{outputBasePath}{level}.json";
+                string jsonString = JsonSerializer.Serialize(jsonOutput, new JsonSerializerOptions { WriteIndented = true });
+
+                // 确保输出目录存在
+                Directory.CreateDirectory(outputDirectory);
+                File.WriteAllText(outputFilePath, jsonString);
+
+                Console.WriteLine($"成功保存等级 {level} 的数据到 {outputFilePath}");
             }
 
-            // 将 JSON 保存到指定目录
-            string jsonString = JsonSerializer.Serialize(jsonOutput, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(outputFilePath, jsonString);
-
-            Console.WriteLine($"成功加载 level_index {selectedLevel} 并保存到 {outputFilePath}");
             Pause();
         }
 
         static void ClearFumens()
         {
-            // 清空 SimaiProcess.fumens 数组
             for (int i = 0; i < SimaiProcess.fumens.Length; i++)
             {
                 SimaiProcess.fumens[i] = null;

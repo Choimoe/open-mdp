@@ -9,15 +9,16 @@ namespace MajdataEdit
     {
         static void Main(string[] args)
         {
-            if (args.Length < 2)
+            if (args.Length < 3)
             {
-                Console.WriteLine("Usage: dotnet run [input_path] [output_directory]");
+                Console.WriteLine("Usage: dotnet run [input_path] [output_directory] [csv_path]");
                 Pause();
                 return;
             }
 
             string inputPath = args[0];
             string outputDirectory = args[1];
+            string csvPath = args[2];
 
             // 提取数字ID（假设路径格式为 "data/niconicoボーカロイド/44_ハツヒイシンセサイサ/"）
             string directoryName = Path.GetFileName(inputPath.TrimEnd('/'));
@@ -135,6 +136,28 @@ namespace MajdataEdit
                 File.WriteAllText(outputFilePath, jsonString);
 
                 Console.WriteLine($"成功保存等级 {level} 的数据到 {outputFilePath}");
+
+                // 获取难度名称和等级
+                string difficultyName = SimaiProcess.GetDifficultyText(level);
+                string levelValue = SimaiProcess.levels[level] ?? "0";
+
+                // 写入CSV
+                try
+                {
+                    bool csvExists = File.Exists(csvPath);
+                    using (StreamWriter sw = new StreamWriter(csvPath, true, System.Text.Encoding.UTF8))
+                    {
+                        if (!csvExists)
+                        {
+                            sw.WriteLine("ID,Difficulty,Level");
+                        }
+                        sw.WriteLine($"{id},{difficultyName},{levelValue}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"写入CSV文件时出错: {ex.Message}");
+                }
             }
 
             Pause();

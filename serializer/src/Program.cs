@@ -149,9 +149,9 @@ namespace MajdataEdit
                     {
                         if (!csvExists)
                         {
-                            sw.WriteLine("ID,Difficulty,Level");
+                            sw.WriteLine("ID,Difficulty,Level,FilePath");
                         }
-                        sw.WriteLine($"{id},{difficultyName},{levelValue}");
+                        sw.WriteLine($"{id},{level},{levelValue},{outputFilePath}");
                     }
                 }
                 catch (Exception ex)

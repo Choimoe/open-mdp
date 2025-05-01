@@ -90,7 +90,7 @@ model = LSTMModelWithAttention(
 ).to(device)
 
 # 加载训练好的模型
-best_model_path = "trained_models/lstm_model.pth"
+best_model_path = "trained_models/best_model.pth"
 model.load_state_dict(torch.load(best_model_path, map_location=device))
 model.eval()
 

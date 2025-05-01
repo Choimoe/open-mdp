@@ -76,7 +76,7 @@ class LSTMModelWithAttention(nn.Module):
         lstm_output, _ = self.lstm(x, (h_0, c_0))
         context_vector, attention_weights = self.attention(lstm_output)
         output = self.fc(context_vector).squeeze(-1)
-        return output, attention_weights
+        return output, attention_weights, lstm_output
 
 
 # 创建模型
@@ -100,8 +100,10 @@ def process_json(json_file_path):
     with open(json_file_path, mode="r", encoding="utf-8") as json_file:
         json_data = json.load(json_file)
         notes_sequence = []
+        time_sequence = []
         for entry in json_data:
             for note in entry["Notes"]:
+                time_sequence.append(note["time"])
                 note_features = [
                     note["holdTime"],
                     int(note["isBreak"]),
@@ -123,12 +125,23 @@ def process_json(json_file_path):
                     note["displacement"],
                 ]
                 notes_sequence.append(note_features)
-        return torch.tensor(notes_sequence, dtype=torch.float32).unsqueeze(0).to(device)
+        return time_sequence, torch.tensor(notes_sequence, dtype=torch.float32).unsqueeze(0).to(device)
 
 
 # 预测函数
 def predict_difficulty(json_file_path):
-    input_data = process_json(json_file_path)
+    time_sequence, input_data = process_json(json_file_path)
+
     with torch.no_grad():
-        output, _ = model(input_data)
-    return json_file_path, output.item()
+        _, _, lstm_output = model(input_data)
+        difficulty_curve = []
+        num_notes = lstm_output.size(1)
+
+        # 生成每个时间点的难度
+        for i in range(1, num_notes + 1):
+            sub_output = lstm_output[:, :i, :]
+            context, _ = model.attention(sub_output)
+            output_i = model.fc(context).squeeze(-1)
+            difficulty_curve.append(output_i.item())
+
+    return time_sequence, difficulty_curve
